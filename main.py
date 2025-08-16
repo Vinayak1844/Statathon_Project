@@ -1,8 +1,7 @@
 from fastapi import FastAPI, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from database import LocalSession, Base, engine
-# from models import User
+from database import LocalSession, Base, engine,Tablename
 
 Base.metadata.create_all(bind=engine)
 
@@ -22,7 +21,7 @@ def Home_Page():
 @app.get("/users/filter")
 def filter_users(request: Request, db: Session = Depends(get_db)):
     filters = dict(request.query_params)  # this will take params from URL
-    base_query = "SELECT * FROM users"
+    base_query = f"SELECT * FROM {Tablename}"
     conditions = []
     values = []
 
@@ -38,5 +37,3 @@ def filter_users(request: Request, db: Session = Depends(get_db)):
 
     result = db.execute(text(query), dict(values))
     return [dict(row._mapping) for row in result]
-
-
