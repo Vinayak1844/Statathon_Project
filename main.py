@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import LocalSession, Base, engine, TABLE_NAME, STATE_TABLE_NAME
@@ -6,6 +7,15 @@ from database import LocalSession, Base, engine, TABLE_NAME, STATE_TABLE_NAME
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_db():
     db = LocalSession()
@@ -104,6 +114,7 @@ def get_nss_data(
     result = db.execute(text(query), values)
     data = [dict(row._mapping) for row in result]
     
+    # Create a clean filters dictionary with only the filter parameters
     filters_applied = {}
     if state_name:
         filters_applied['state_name'] = state_name
