@@ -8,4 +8,5 @@ engine = create_engine(DB_URL)
 LocalSession = sessionmaker(bind=engine)
 Base = declarative_base()   
 
-Tablename = "output"
+TABLE_NAME = "microdata_op"
+STATE_TABLE_NAME = "codes"
