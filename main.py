@@ -3,6 +3,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import LocalSession, Base, engine, TABLE_NAME, STATE_TABLE_NAME
+from dotenv import load_dotenv
+import os
+import google.generativeai as genai
+from pydantic import BaseModel
+
+
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+# In-memory chat sessions (keyed by user_id or "default")
+chat_sessions = {}
+
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -11,11 +27,17 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 def get_db():
     db = LocalSession()
@@ -140,4 +162,85 @@ def get_nss_data(
         "count": len(data),
         "filters_applied": filters_applied,
         "data": data
+    }
+
+class ChatRequest(BaseModel):
+    user_id: str = "default"
+    message: str
+
+
+
+import json
+import re
+
+def extract_filters_from_message(message: str):
+    prompt = f"""
+    You are a strict JSON parser. Convert the user request into a JSON object 
+    with only these keys if present:
+    state_name, sector, district_name, religion, social_group,
+    household_size, panel, quarter, visit.
+
+    - Return only valid JSON.
+    - Do not include explanations, extra text, or code fences.
+    - If a key is not mentioned, omit it.
+    
+    Example:
+    Input: "Show me urban households in Bihar that are Hindu"
+    Output: {{"state_name": "Bihar", "sector": "Urban", "religion": "Hindu"}}
+
+    Now parse this message:
+    "{message}"
+    """
+
+    result = model.generate_content(prompt)
+
+    # Some Gemini SDKs return `result.text()` vs `.text`
+    try:
+        text = result.text.strip()
+    except TypeError:
+        text = result.text().strip()
+
+    # Clean up common junk (like ```json ... ```)
+    text = re.sub(r"^```[a-zA-Z]*\n", "", text)  # remove opening code fence
+    text = re.sub(r"\n```$", "", text)           # remove closing code fence
+
+    try:
+        filters = json.loads(text)
+        return filters
+    except Exception as e:
+        print("Failed to parse filters:", text, e)
+        return {}
+
+
+
+
+@app.post("/chat")
+def chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
+    user_id = req.user_id
+    message = req.message
+
+    # get filters from Gemini
+    filters = extract_filters_from_message(message) or {}
+
+    # pass filters into your existing filter function
+    data = get_nss_data(
+        state_name=filters.get("state_name"),
+        sector=filters.get("sector"),
+        district_name=filters.get("district_name"),
+        religion=filters.get("religion"),
+        social_group=filters.get("social_group"),
+        household_size=filters.get("household_size"),
+        panel=filters.get("panel"),
+        quarter=filters.get("quarter"),
+        visit=filters.get("visit"),
+        db=db
+    )
+
+    # Ensure reply is never blank
+    reply_text = f"Applied filters: {filters if filters else 'none'} | Found {data['count']} records"
+
+    return {
+        "reply": reply_text,
+        "filters": filters,
+        "data": data["data"]
     }

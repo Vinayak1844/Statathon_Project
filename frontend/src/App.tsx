@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import ChatWidget from './components/Chatwidget';
 import './App.css';
 
 interface FilterData {
@@ -264,6 +265,7 @@ function App() {
             </div>
           </div>
         )}
+         <ChatWidget />
       </main>
     </div>
   );

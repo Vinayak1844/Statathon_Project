@@ -2,7 +2,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # MySQL connection configuration
-DB_URL = "mysql+mysqlconnector://root:Vinayak%401844@localhost:3306/statathon"
+DB_URL = "mysql+mysqlconnector://myuser:MyPassword@localhost:3306/statathon"
+
 
 engine = create_engine(DB_URL)
 LocalSession = sessionmaker(bind=engine)
